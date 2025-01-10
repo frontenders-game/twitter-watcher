@@ -12,9 +12,10 @@ const __dirname = path.dirname(__filename);
 
 
 export default class TwitterService {
-    constructor(username, password) {
+    constructor(username, password, email) {
         this.username = username;
         this.password = password;
+        this.email = email;
         this.scraper = new Scraper();
         this.jsonDir = path.join(__dirname, 'json');
         this.cookiePath = path.join(this.jsonDir, 'cookies.json');
@@ -43,7 +44,8 @@ export default class TwitterService {
         try {
             await this.scraper.login(
                 this.username,
-                this.password
+                this.password,
+                this.email
             );
             this.isLoggedIn = true;
             const cookies = await this.scraper.getCookies();

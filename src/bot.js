@@ -15,7 +15,8 @@ dotenv.config({path: `${ROOT_DIRECTORY}/.env`});
 
 const twitterService = new TwitterService(
     process.env.TWITTER_USERNAME,
-    process.env.TWITTER_PASSWORD
+    process.env.TWITTER_PASSWORD,
+    process.env.TWITTER_EMAIL
 );
 
 await twitterService.initialize();
