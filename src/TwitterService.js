@@ -215,6 +215,7 @@ export default class TwitterService {
 
     async compareTweets(oldTweets, newTweets) {
         const oldTweetsIds = oldTweets.map((tweet) => tweet.id);
-        return newTweets.filter(tweet => !oldTweetsIds.includes(tweet.id));
+        const latestTimestamp = oldTweets[0].timestamp;
+        return newTweets.filter(tweet => (!oldTweetsIds.includes(tweet.id) && tweet.timestamp > latestTimestamp));
     }
 }

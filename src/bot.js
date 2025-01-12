@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import {Bot, InlineKeyboard} from 'grammy'
 import TwitterService from "./TwitterService.js";
 
-const TIME_INTERVAL = 2 * 60 * 1000 // Checks every 2 minutes
+const TIME_INTERVAL = 3 * 60 * 1000 // Checks every 2 minutes
 const TIMEOUT = 15 * 60 * 1000 // Checks every 2 minutes
 // const TELEGRAM_MAX_MESSAGE_LENGTH = 4096 // set by telegram
 // const TELEGRAM_MAX_CAPTION_LENGTH = 1024 // set by telegram
@@ -72,8 +72,7 @@ setInterval(async () => {
 
             let sentMessage;
 
-            // Note that we are checking tweet.text, not text. This is because we insert mentions in the text that are no useful urls
-            if (!tweet.isRetweet && !tweet.isQuoted) {
+            if (!tweet.isRetweet && !tweet.isQuoted && (tweet.photos.length + tweet.videos.length > 0)) {
                 otherOptions.caption = text;
                 if ((tweet.photos.length + tweet.videos.length) > 1) { // 2 or more media
                     const mediaPhotos = tweet.photos.map(media => {
@@ -82,14 +81,12 @@ setInterval(async () => {
                             type: "photo"
                         }
                     });
-
                     const mediaVideos = tweet.videos.map(media => {
                         return {
                             media: media.url,
                             type: "video"
                         }
                     });
-
                     const media = mediaPhotos.concat(mediaVideos).slice(0, 10); // using only first 10
                     media[0].parse_mode = 'HTML';
                     media[0].caption = text + `\n\n<a href="${tweetUrl}">${raidText}</a>`;
