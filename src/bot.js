@@ -3,14 +3,12 @@ import dotenv from 'dotenv';
 import {Bot, InlineKeyboard} from 'grammy'
 import TwitterService from "./TwitterService.js";
 
-const TIME_INTERVAL = 3 * 60 * 1000 // Checks every 2 minutes
-const TIMEOUT = 15 * 60 * 1000 // Checks every 2 minutes
-// const TELEGRAM_MAX_MESSAGE_LENGTH = 4096 // set by telegram
-// const TELEGRAM_MAX_CAPTION_LENGTH = 1024 // set by telegram
-
 // getting private data
 const ROOT_DIRECTORY = path.dirname(import.meta.dirname);
 dotenv.config({path: `${ROOT_DIRECTORY}/.env`});
+
+const REFRESH_TIME_INTERVAL = process.env.TWITTER_REFRESH_TIME_MINUTES * 60 * 1000 // Checks every N minutes
+const TIMEOUT = 15 * 60 * 1000
 
 
 const twitterService = new TwitterService(
@@ -19,14 +17,12 @@ const twitterService = new TwitterService(
     process.env.TWITTER_EMAIL
 );
 
-await twitterService.initialize();
-
 
 const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN);
 
 try {
     await bot.api.sendMessage(process.env.TELEGRAM_ADMIN_ID, 'I am starting to work.')
-} catch (error){
+} catch (error) {
     console.error("Couldn't send welcome message to admin: ", error)
 }
 
@@ -34,14 +30,17 @@ const chatId = process.env.TELEGRAM_CHAT_ID;
 const twitterName = process.env.TWITTER_NAME_TO_FOLLOW
 
 
+await twitterService.initialize();
+
 setInterval(async () => {
     // Get tweets by account since the last check
     try {
         const newTweets = await twitterService.getDiffTweets(twitterName);
-        newTweets.reverse(); // old tweets first
+        // old tweets first
+        newTweets.reverse();
         for (const tweet of newTweets) {
-            console.log(tweet)
-            console.log('--- END OF TWEET ---');
+            console.log('New tweet: ', tweet);
+
             // Do not forward replies
             if (tweet.isReply) continue
 
@@ -51,7 +50,7 @@ setInterval(async () => {
             const title = `<a href="${profileUrl}">${twitterName}</a> <b>${titleType}:</b>`
             let text = `${title}\n\n${tweet.text}`;
 
-            // Replace Telegram alias to Twitter direct links in order to avoid scams
+            // Replace Telegram alias to Twitter direct links in order to avoid confusion and possible scams
             const mentions = text.matchAll(/\@(\w+)/g)
             for (const mention of mentions) {
                 text = text.replace(mention[0], `<a href="https://x.com/${mention[1]}">${mention[0]}</a>`)
@@ -74,7 +73,7 @@ setInterval(async () => {
 
             if (!tweet.isRetweet && !tweet.isQuoted && (tweet.photos.length + tweet.videos.length > 0)) {
                 otherOptions.caption = text;
-                if ((tweet.photos.length + tweet.videos.length) > 1) { // 2 or more media
+                if ((tweet.photos.length + tweet.videos.length) > 1) { // 2 or more media send as album
                     const mediaPhotos = tweet.photos.map(media => {
                         return {
                             media: media.url,
@@ -91,16 +90,15 @@ setInterval(async () => {
                     media[0].parse_mode = 'HTML';
                     media[0].caption = text + `\n\n<a href="${tweetUrl}">${raidText}</a>`;
                     sentMessage = await bot.api.sendMediaGroup(chatId, media, otherOptions)
-
-                } else {
+                } else {  // 1 photo or video in tweet
                     otherOptions.caption = text
-                    if (tweet.photos.length > 0) {
+                    if (tweet.photos.length > 0) {  // 1 photo
                         sentMessage = await bot.api.sendPhoto(chatId, tweet.photos[0].url, otherOptions)
-                    } else if (tweet.videos.length > 0) {
+                    } else if (tweet.videos.length > 0) { // else 1 video
                         sentMessage = await bot.api.sendVideo(chatId, tweet.videos[0].url, otherOptions)
                     }
                 }
-            } else {  // usual message
+            } else {  // usual sendMessage
                 if (tweet.isRetweet) {
                     otherOptions.link_preview_options.url = tweet.retweetedStatus.permanentUrl
                 } else if (tweet.isQuoted) {
@@ -122,4 +120,4 @@ setInterval(async () => {
             console.log("Lets go ", TIMEOUT);
         }, TIMEOUT);
     }
-}, TIME_INTERVAL)
+}, REFRESH_TIME_INTERVAL)

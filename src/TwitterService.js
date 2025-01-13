@@ -1,14 +1,13 @@
-import {Scraper} from "agent-twitter-client";
-import {Cookie} from "tough-cookie";
 import fs from "fs";
 import path from "path";
 import {fileURLToPath} from 'url';
+import {Scraper} from "agent-twitter-client";
+import {Cookie} from "tough-cookie";
 
 
 // Get the directory name properly in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// Create directory if it doesn't exist
 
 
 export default class TwitterService {
@@ -20,11 +19,13 @@ export default class TwitterService {
         this.jsonDir = path.join(__dirname, 'json');
         this.cookiePath = path.join(this.jsonDir, 'cookies.json');
         this.tweetsDir = this.jsonDir
+        this.savedTweets = {}
         this.isLoggedIn = false;
     }
 
     async initialize() {
-        await fs.mkdirSync(path.dirname(this.jsonDir), { recursive: true });
+        // Create directory if it doesn't exist
+        await fs.mkdirSync(path.dirname(this.jsonDir), {recursive: true});
         try {
             await this.loadCookies();
 
@@ -65,7 +66,7 @@ export default class TwitterService {
 
                 const cookies = cookiesJson.map(cookieData => {
                     try {
-                        return Cookie.fromJSON(cookieData).toString(); // without .toString
+                        return Cookie.fromJSON(cookieData).toString(); // Supposed to work without .toString(), but it doesn't
                     } catch (error) {
                         console.error('Failed to parse cookie:', error);
                         return null;
@@ -145,25 +146,26 @@ export default class TwitterService {
     // }
 
     async loadTweets(name) {
-        // if tweets file exists, read from file
+        if (this.savedTweets.name) return this.savedTweets.name
+        // if tweets not in memory, script is run for the 1st time, read from file
         const filePath = path.join(this.tweetsDir, `tweets-by-${name}.json`)
         if (fs.existsSync(filePath)) {
             const tweets = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            console.log(`Total loaded tweets for ${name}: ${tweets.length}`)
+            this.savedTweets.name = tweets;
+            console.log(`Total tweets read from file for ${name}: ${tweets.length}`)
             return tweets;
         }
         return null;
     }
 
 
-    async saveTweets(name, tweetsJson) {
-        if (tweetsJson.length > 0) {
+    async saveTweets(name, tweets) {
+        if (tweets.length > 0) {
             try {
-                console.log(`Total tweets to save for ${name}: ${tweetsJson.length}.`)
                 const filePath = path.join(this.tweetsDir, `tweets-by-${name}.json`)
-                console.log(filePath)
-                await fs.writeFileSync(filePath, JSON.stringify(tweetsJson, null, 2));
-                console.log(`Tweets saved successfully`);
+                await fs.writeFileSync(filePath, JSON.stringify(tweets, null, 2));
+                this.savedTweets.name = tweets;
+                console.log(`Total tweets written to file and memory for ${name}: ${tweets.length}.`)
             } catch (error) {
                 console.log('Tweets saving error:', error);
             }
@@ -189,7 +191,6 @@ export default class TwitterService {
             // tweets.push(await this.processTweetData(tweet));
             tweets.push(tweet);
         }
-        console.log(`Total fetched tweets by ${name}: ${tweets.length}`);
         return tweets;
     }
 
@@ -203,9 +204,8 @@ export default class TwitterService {
             return [];
         } else if (oldTweets && oldTweets.length > 0 && newTweets.length > 0) {
             const diffTweets = await this.compareTweets(oldTweets, newTweets);
-            console.log(diffTweets);
 
-            // save new json1 only if new tweet posted.
+            // save new json only if new tweet posted.
             if (diffTweets.length > 0) {
                 await this.saveTweets(name, newTweets);
             }
@@ -214,8 +214,7 @@ export default class TwitterService {
     }
 
     async compareTweets(oldTweets, newTweets) {
-        const oldTweetsIds = oldTweets.map((tweet) => tweet.id);
         const latestTimestamp = oldTweets[0].timestamp;
-        return newTweets.filter(tweet => (!oldTweetsIds.includes(tweet.id) && tweet.timestamp > latestTimestamp));
+        return newTweets.filter(tweet => tweet.timestamp > latestTimestamp);
     }
 }
