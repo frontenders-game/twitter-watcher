@@ -146,12 +146,9 @@ export default class TwitterService {
     // }
 
     async loadTweets(name) {
-        if (this.savedTweets.name) return this.savedTweets.name
-        // if tweets not in memory, script is run for the 1st time, read from file
         const filePath = path.join(this.tweetsDir, `tweets-by-${name}.json`)
         if (fs.existsSync(filePath)) {
             const tweets = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            this.savedTweets.name = tweets;
             console.log(`Total tweets read from file for ${name}: ${tweets.length}`)
             return tweets;
         }
@@ -163,11 +160,10 @@ export default class TwitterService {
         if (tweets.length > 0) {
             try {
                 const filePath = path.join(this.tweetsDir, `tweets-by-${name}.json`)
-                await fs.writeFileSync(filePath, JSON.stringify(tweets, null, 2));
-                this.savedTweets.name = tweets;
-                console.log(`Total tweets written to file and memory for ${name}: ${tweets.length}.`)
+                fs.writeFileSync(filePath, JSON.stringify(tweets, null, 2));
+                console.log(`Total tweets written to file for ${name}: ${tweets.length}.`)
             } catch (error) {
-                console.log('Tweets saving error:', error);
+                console.error('Tweets saving error:', error);
             }
         } else {
             console.log('No tweets to save for ', name);
@@ -195,22 +191,23 @@ export default class TwitterService {
     }
 
     async getDiffTweets(name, count = 20) {
-        const oldTweets = await this.loadTweets(name);
         const newTweets = await this.getNewTweets(name, count);
+        const oldTweets =  this.savedTweets.name ? this.savedTweets.name : await this.loadTweets(name);
 
-        if (!oldTweets || oldTweets.length === 0) {
-            console.log('No old tweets found.');
-            await this.saveTweets(name, newTweets);
-            return [];
-        } else if (oldTweets && oldTweets.length > 0 && newTweets.length > 0) {
+        if (oldTweets && oldTweets.length > 0 && newTweets.length > 0) {
             const diffTweets = await this.compareTweets(oldTweets, newTweets);
-
+            // save to memory
+            this.savedTweets.name = newTweets;
             // save new json only if new tweet posted.
             if (diffTweets.length > 0) {
                 await this.saveTweets(name, newTweets);
             }
             return diffTweets;
+        } else if ((!oldTweets || oldTweets.length > 0) && newTweets.length > 0) {
+            console.log('No old tweets found.');
+            await this.saveTweets(name, newTweets);
         }
+        return [];
     }
 
     async compareTweets(oldTweets, newTweets) {
