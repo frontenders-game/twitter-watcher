@@ -40,38 +40,43 @@ setInterval(async () => {
         // old tweets first
         newTweets.reverse();
         for (const tweet of newTweets) {
+            console.log('New tweet: ', tweet);
+
+            // Do not forward replies
+            if (tweet.isReply) continue
+
             let sentMessage;
+
+            // construct inlineButton
+            const raidText = '🔥 RAID IT NOW 🚀'
+
+            const profileUrl = `https://x.com/${twitterName}/`
+            const tweetUrl = `${profileUrl}status/${tweet.id}`
+            const titleType = tweet.isRetweet ? "retweeted 🔁" : tweet.isQuoted ? 'quoted 📝' : "tweeted ✏️"
+            const title = `<a href="${profileUrl}">${twitterName}</a> <b>${titleType}:</b>`
+            let text = `${title}\n\n${tweet.text}`;
+
+            // Replace Telegram alias to Twitter direct links in order to avoid confusion and possible scams
+            const mentions = text.matchAll(/\@(\w+)/g)
+            for (const mention of mentions) {
+                text = text.replace(mention[0], `<a href="https://x.com/${mention[1]}">${mention[0]}</a>`)
+            }
+
+            // keyboard URL button
+            const keyboard = new InlineKeyboard().url(raidText, tweetUrl);
+
+            // sendMessage options
+            const otherOptions = {
+                reply_markup: keyboard,
+                parse_mode: 'HTML',
+                message_thread_id: process.env.TELEGRAM_MESSAGE_THREAD_ID,
+                link_preview_options: {
+                    is_disabled: false,
+                    prefer_large_media: true
+                }
+            }
+
             try {
-                console.log('New tweet: ', tweet);
-
-                // Do not forward replies
-                if (tweet.isReply) continue
-
-                const profileUrl = `https://x.com/${twitterName}/`
-                const tweetUrl = `${profileUrl}status/${tweet.id}`
-                const titleType = tweet.isRetweet ? "retweeted 🔁" : tweet.isQuoted ? 'quoted 📝' : "tweeted ✏️"
-                const title = `<a href="${profileUrl}">${twitterName}</a> <b>${titleType}:</b>`
-                let text = `${title}\n\n${tweet.text}`;
-
-                // Replace Telegram alias to Twitter direct links in order to avoid confusion and possible scams
-                const mentions = text.matchAll(/\@(\w+)/g)
-                for (const mention of mentions) {
-                    text = text.replace(mention[0], `<a href="https://x.com/${mention[1]}">${mention[0]}</a>`)
-                }
-
-                // construct inlineButton
-                const raidText = '🔥 RAID IT NOW 🚀'
-                const keyboard = new InlineKeyboard().url(raidText, tweetUrl);
-                const otherOptions = {
-                    reply_markup: keyboard,
-                    parse_mode: 'HTML',
-                    message_thread_id: process.env.TELEGRAM_MESSAGE_THREAD_ID,
-                    link_preview_options: {
-                        is_disabled: false,
-                        prefer_large_media: true
-                    }
-                }
-
                 if (!tweet.isRetweet && !tweet.isQuoted && (tweet.photos.length + tweet.videos.length > 0)) {
                     otherOptions.caption = text;
                     if ((tweet.photos.length + tweet.videos.length) > 1) { // 2 or more media send as album
@@ -113,7 +118,9 @@ setInterval(async () => {
                 }
             } catch (error) {
                 console.error("Couldn't send message. Sending simple msg without parse_mode. Error: ", error)
-                sentMessage = await bot.api.sendMessage(chatId, `${tweet.permanentUrl}:\n\n${tweet.text}`)
+                // remove parse_mode
+                delete otherOptions.parse_mode
+                sentMessage = await bot.api.sendMessage(chatId, `${tweet.permanentUrl}:\n\n${tweet.text}`, otherOptions)
             }
             console.log('message sent: ', sentMessage)
         }
